@@ -160,27 +160,28 @@ else:
                             )
                             
                             st.subheader("LLM Analysis")
-                            # Parse response based on Databricks SDK structure
+                            # Handle the response properly
                             try:
-                                # Try the standard format first
-                                analysis_result = response.choices[0].message.content
-                            except (AttributeError, IndexError, KeyError) as e:
-                                # Try alternative parsing methods
+                                # For Databricks SDK, the response might be a dict or have different structure
+                                if isinstance(response, dict):
+                                    # If it's a dict, try to access directly
+                                    analysis_result = response['choices'][0]['message']['content']
+                                else:
+                                    # If it's an object, try standard attribute access
+                                    analysis_result = response.choices[0].message.content
+                            except Exception as parse_error:
+                                # Show detailed error information
+                                st.error(f"Failed to parse response: {parse_error}")
+                                st.error(f"Response type: {type(response)}")
+                                st.error(f"Available attributes: {dir(response) if hasattr(response, '__dict__') else 'No attributes'}")
+                                
+                                # Try to show the raw response
                                 try:
-                                    # Convert to dict if it's a dataclass/object
-                                    if hasattr(response, 'as_dict'):
-                                        response_dict = response.as_dict()
-                                        analysis_result = response_dict['choices'][0]['message']['content']
-                                    elif hasattr(response, '__dict__'):
-                                        response_dict = response.__dict__
-                                        analysis_result = response_dict['choices'][0]['message']['content']
-                                    else:
-                                        # Last resort - try to access raw response
-                                        analysis_result = str(response)
-                                except Exception as nested_e:
-                                    st.error(f"Response parsing error: {e}, nested: {nested_e}")
-                                    st.error(f"Response type: {type(response)}")
-                                    analysis_result = f"Error parsing response: {response}"
+                                    st.json(response if isinstance(response, dict) else str(response))
+                                except:
+                                    st.write(f"Raw response: {response}")
+                                
+                                analysis_result = "Failed to parse LLM response"
                             
                             st.write(analysis_result)
                             
