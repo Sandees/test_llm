@@ -151,6 +151,10 @@ else:
                         user_msg = {"role": "user", "content": user_prompt}
                         
                         try:
+                            st.write("Debug - Making API call...")
+                            st.write("Debug - Model name:", "databricks-meta-llama-3-70b-instruct")
+                            st.write("Debug - Messages:", [system_msg, user_msg])
+                            
                             # Call the LLM (replace with your actual model name)
                             response = w.serving_endpoints.query(
                                 name="databricks-meta-llama-3-70b-instruct",  # Replace with your model
@@ -158,18 +162,36 @@ else:
                                 temperature=0.1,
                                 max_tokens=2048
                             )
-                            st.subheader("LLM Analysis")
-                            # Debug: Show response structure
-                            st.write("Debug - Response type:", type(response))
-                            st.write("Debug - Response:", response)
                             
-                            try:
-                                analysis_result = response.choices[0].message.content
-                            except Exception as e:
-                                st.error(f"Error parsing response: {e}")
-                                st.write("Response structure:", response)
+                            st.write("Debug - API call successful")
+                            st.write("Debug - Response type:", type(response))
+                            st.write("Debug - Response dir:", dir(response))
+                            
+                            # Try to access the response content
+                            if hasattr(response, 'choices'):
+                                st.write("Debug - Has choices attribute")
+                                st.write("Debug - Choices:", response.choices)
+                                if response.choices and len(response.choices) > 0:
+                                    st.write("Debug - First choice:", response.choices[0])
+                                    st.write("Debug - Choice type:", type(response.choices[0]))
+                                    if hasattr(response.choices[0], 'message'):
+                                        st.write("Debug - Has message:", response.choices[0].message)
+                                        if hasattr(response.choices[0].message, 'content'):
+                                            analysis_result = response.choices[0].message.content
+                                        else:
+                                            st.write("Debug - Message attributes:", dir(response.choices[0].message))
+                                            analysis_result = str(response.choices[0].message)
+                                    else:
+                                        st.write("Debug - Choice attributes:", dir(response.choices[0]))
+                                        analysis_result = str(response.choices[0])
+                                else:
+                                    analysis_result = "No choices in response"
+                            else:
+                                st.write("Debug - No choices attribute")
+                                st.write("Debug - Response attributes:", dir(response))
                                 analysis_result = str(response)
                             
+                            st.subheader("LLM Analysis")
                             st.write(analysis_result)
                             
                             # Store the analysis result in session state
