@@ -41,60 +41,88 @@ def test_databricks_api():
         print(f"❌ Failed to initialize client: {e}")
         return False
     
-    # Test message format
-    system_msg = {"role": "system", "content": "You are a helpful assistant."}
-    user_msg = {"role": "user", "content": "Hello, can you tell me what 2+2 equals?"}
+    # Test different API call formats
+    print("\nTesting different API call formats...")
     
-    print("\nTesting API call...")
-    print(f"Model: databricks-meta-llama-3-3-70b-instruct")
-    print(f"Messages: {[system_msg, user_msg]}")
-    
+    # Method 1: Standard messages format
+    print("\n--- Method 1: Standard messages format ---")
     try:
         response = w.serving_endpoints.query(
             name="databricks-meta-llama-3-3-70b-instruct",
-            messages=[system_msg, user_msg],
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello, what is 2+2?"}
+            ],
             temperature=0.1,
             max_tokens=100
         )
-        
-        print("✅ API call successful!")
-        print(f"Response type: {type(response)}")
+        print("✅ Method 1 successful!")
         print(f"Response: {response}")
-        
-        # Try to parse the response
-        try:
-            if hasattr(response, 'choices') and response.choices:
-                content = response.choices[0].message.content
-                print(f"✅ Parsed content: {content}")
-            elif hasattr(response, 'predictions') and response.predictions:
-                content = response.predictions[0]['candidates'][0]['message']['content']
-                print(f"✅ Parsed content: {content}")
-            elif isinstance(response, dict):
-                if 'choices' in response:
-                    content = response['choices'][0]['message']['content']
-                    print(f"✅ Parsed content: {content}")
-                else:
-                    print(f"❌ Unknown dict structure: {response}")
-            else:
-                print(f"❌ Unknown response structure")
-                print(f"Available attributes: {dir(response)}")
-                
-        except Exception as parse_error:
-            print(f"❌ Failed to parse response: {parse_error}")
-            print(f"Response attributes: {dir(response)}")
-            
-        return True
-        
-    except Exception as api_error:
-        print(f"❌ API call failed: {api_error}")
-        print(f"Error type: {type(api_error).__name__}")
-        
-        # Show more detailed error information
-        if hasattr(api_error, 'response'):
-            print(f"Response status: {api_error.response.status_code if hasattr(api_error.response, 'status_code') else 'Unknown'}")
-            print(f"Response text: {api_error.response.text if hasattr(api_error.response, 'text') else 'No response text'}")
-        
-        return False
+    except Exception as e:
+        print(f"❌ Method 1 failed: {e}")
+    
+    # Method 2: Dataframe format
+    print("\n--- Method 2: Dataframe format ---")
+    try:
+        import pandas as pd
+        df = pd.DataFrame({
+            "messages": [
+                [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Hello, what is 2+2?"}
+                ]
+            ]
+        })
+        response = w.serving_endpoints.query(
+            name="databricks-meta-llama-3-3-70b-instruct",
+            dataframe_records=df.to_dict(orient="records")
+        )
+        print("✅ Method 2 successful!")
+        print(f"Response: {response}")
+    except Exception as e:
+        print(f"❌ Method 2 failed: {e}")
+    
+    # Method 3: Raw JSON format
+    print("\n--- Method 3: Raw JSON format ---")
+    try:
+        response = w.serving_endpoints.query(
+            name="databricks-meta-llama-3-3-70b-instruct",
+            inputs={
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Hello, what is 2+2?"}
+                ],
+                "temperature": 0.1,
+                "max_tokens": 100
+            }
+        )
+        print("✅ Method 3 successful!")
+        print(f"Response: {response}")
+    except Exception as e:
+        print(f"❌ Method 3 failed: {e}")
+    
+    # Method 4: Simple prompt format
+    print("\n--- Method 4: Simple prompt format ---")
+    try:
+        response = w.serving_endpoints.query(
+            name="databricks-meta-llama-3-3-70b-instruct",
+            inputs={"prompt": "Hello, what is 2+2?"}
+        )
+        print("✅ Method 4 successful!")
+        print(f"Response: {response}")
+    except Exception as e:
+        print(f"❌ Method 4 failed: {e}")
+    
+    # Let's also try to list available endpoints
+    print("\n--- Available serving endpoints ---")
+    try:
+        endpoints = w.serving_endpoints.list()
+        for endpoint in endpoints:
+            print(f"Endpoint: {endpoint.name}")
+    except Exception as e:
+        print(f"❌ Failed to list endpoints: {e}")
+    
+    return False  # We'll return True only if one of the methods works
 
 if __name__ == "__main__":
     success = test_databricks_api()
