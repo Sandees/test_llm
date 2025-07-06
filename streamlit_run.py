@@ -1,7 +1,7 @@
 import os
 import json
 import streamlit as st
-from databricks.sdk import WorkspaceClient
+import requests
 from datetime import datetime
 
 # Load environment variables from .env file if it exists
@@ -14,16 +14,57 @@ except ImportError:
 # Set page config for wider layout
 st.set_page_config(page_title="Usecase Review Assistant", layout="wide")
 
-def init_databricks_client():
-    """Initialize Databricks workspace client"""
+def init_databricks_config():
+    """Initialize Databricks configuration for HTTP requests"""
+    token = os.getenv("DATABRICKS_TOKEN")
+    host = os.getenv("DATABRICKS_HOST")
+    
+    if not token or not host:
+        st.error("Missing DATABRICKS_TOKEN or DATABRICKS_HOST environment variables")
+        return None
+    
+    return {
+        "token": token,
+        "host": host.rstrip('/'),
+        "headers": {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+    }
+
+def call_databricks_llm(config, messages, temperature=0.1, max_tokens=2048):
+    """Call Databricks LLM using direct HTTP requests"""
+    if not config:
+        return None
+    
+    url = f"{config['host']}/serving-endpoints/databricks-meta-llama-3-3-70b-instruct/invocations"
+    
+    payload = {
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature
+    }
+    
     try:
-        # This will use DATABRICKS_HOST and DATABRICKS_TOKEN from environment
-        return WorkspaceClient()
+        response = requests.post(url, headers=config["headers"], json=payload, timeout=60)
+        
+        if response.status_code == 200:
+            response_json = response.json()
+            if 'choices' in response_json:
+                return response_json['choices'][0]['message']['content']
+            elif 'predictions' in response_json:
+                return str(response_json['predictions'][0])
+            else:
+                return str(response_json)
+        else:
+            st.error(f"API call failed with status {response.status_code}: {response.text}")
+            return None
+            
     except Exception as e:
-        st.error(f"Failed to initialize Databricks client: {e}")
+        st.error(f"API request failed: {e}")
         return None
 
-w = init_databricks_client()
+config = init_databricks_config()
 
 @st.cache_data
 def load_data(path="mitre_enriched_with_files.json"):
@@ -137,84 +178,26 @@ else:
             user_prompt = st.text_area("Edit the prompt to LLM:", value=default_prompt, height=400)
 
             if st.button("Analyze Use Case"):
-                if not w:
-                    st.error("Databricks client not initialized. Please check your environment variables.")
+                if not config:
+                    st.error("Databricks configuration not initialized. Please check your environment variables.")
                 else:
                     with st.spinner("Analyzing..."):
-                        system_msg = {
-                            "role": "system", 
-                            "content": (
-                                "You are a security-focused assistant. "
-                                "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
-                            )
-                        }
-                        user_msg = {"role": "user", "content": user_prompt}
-                        
-                        try:
-                            st.write("About to make API call...")
-                            
-                            try:
-                                # Call the LLM using correct Databricks SDK format
-                                response = w.serving_endpoints.query(
-                                    name="databricks-meta-llama-3-3-70b-instruct",
-                                    messages=[system_msg, user_msg],
-                                    temperature=0.1,
-                                    max_tokens=2048
+                        messages = [
+                            {
+                                "role": "system", 
+                                "content": (
+                                    "You are a security-focused assistant. "
+                                    "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
                                 )
-                                st.write("API call completed successfully!")
-                                
-                            except Exception as api_error:
-                                st.error(f"API call failed: {str(api_error)}")
-                                st.error(f"Error type: {type(api_error).__name__}")
-                                
-                                # Show more detailed error information
-                                if hasattr(api_error, 'response'):
-                                    st.write(f"Response status: {api_error.response.status_code if hasattr(api_error.response, 'status_code') else 'Unknown'}")
-                                    st.write(f"Response text: {api_error.response.text if hasattr(api_error.response, 'text') else 'No response text'}")
-                                
-                                st.write("This might be due to:")
-                                st.write("1. Invalid model name - check if 'databricks-meta-llama-3-3-70b-instruct' exists")
-                                st.write("2. Authentication issues - check DATABRICKS_TOKEN and DATABRICKS_HOST")
-                                st.write("3. Model not available or not deployed")
-                                st.write("4. Incorrect message format")
-                                st.write("5. Insufficient permissions")
-                                
-                                # Don't continue processing if API call failed
-                                analysis_result = "API call failed"
-                            
+                            },
+                            {"role": "user", "content": user_prompt}
+                        ]
+                        
+                        st.write("Making API call...")
+                        analysis_result = call_databricks_llm(config, messages, temperature=0.1, max_tokens=2048)
+                        
+                        if analysis_result:
                             st.subheader("LLM Analysis")
-                            
-                            # Handle the response properly only if API call succeeded
-                            if 'response' in locals():
-                                try:
-                                    # For Databricks serving endpoints, try these formats
-                                    if hasattr(response, 'choices') and response.choices:
-                                        # Standard OpenAI-like format
-                                        analysis_result = response.choices[0].message.content
-                                    elif hasattr(response, 'predictions') and response.predictions:
-                                        # Databricks predictions format
-                                        analysis_result = response.predictions[0]['candidates'][0]['message']['content']
-                                    elif isinstance(response, dict):
-                                        # Dictionary format
-                                        if 'choices' in response:
-                                            analysis_result = response['choices'][0]['message']['content']
-                                        elif 'predictions' in response:
-                                            analysis_result = response['predictions'][0]['candidates'][0]['message']['content']
-                                        else:
-                                            analysis_result = str(response)
-                                    else:
-                                        # Try to convert to string
-                                        analysis_result = str(response)
-                                except Exception as parse_error:
-                                    st.error(f"Failed to parse response: {parse_error}")
-                                    st.write(f"Response type: {type(response)}")
-                                    st.write(f"Response attributes: {dir(response)}")
-                                    try:
-                                        st.write(f"Response: {response}")
-                                    except:
-                                        st.write("Response object cannot be displayed")
-                                    analysis_result = "Failed to parse response"
-                            
                             st.write(analysis_result)
                             
                             # Store the analysis result in session state
@@ -247,29 +230,31 @@ else:
                                         
                                         try:
                                             # Send entire conversation history for context
-                                            follow_up_response = w.serving_endpoints.query(
-                                                name="databricks-meta-llama-3-3-70b-instruct",
-                                                messages=[system_msg] + st.session_state.conversation_history,
-                                                temperature=0.1,
+                                            system_msg = {
+                                                "role": "system", 
+                                                "content": (
+                                                    "You are a security-focused assistant. "
+                                                    "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
+                                                )
+                                            }
+                                            follow_up_messages = [system_msg] + st.session_state.conversation_history
+                                            
+                                            follow_up_result = call_databricks_llm(
+                                                config, 
+                                                follow_up_messages, 
+                                                temperature=0.1, 
                                                 max_tokens=2048
                                             )
-                                            
-                                            # Handle different response formats for follow-up
-                                            if hasattr(follow_up_response, 'choices') and follow_up_response.choices:
-                                                follow_up_result = follow_up_response.choices[0].message.content
-                                            elif hasattr(follow_up_response, 'content'):
-                                                follow_up_result = follow_up_response.content
-                                            elif isinstance(follow_up_response, dict):
-                                                follow_up_result = follow_up_response.get('content', str(follow_up_response))
+                                            if follow_up_result:
+                                                st.session_state.conversation_history.append({
+                                                    "role": "assistant",
+                                                    "content": follow_up_result
+                                                })
+                                                
+                                                st.subheader("Follow-up Response")
+                                                st.write(follow_up_result)
                                             else:
-                                                follow_up_result = str(follow_up_response)
-                                            st.session_state.conversation_history.append({
-                                                "role": "assistant",
-                                                "content": follow_up_result
-                                            })
-                                            
-                                            st.subheader("Follow-up Response")
-                                            st.write(follow_up_result)
+                                                st.error("Follow-up request failed")
                                             
                                         except Exception as e:
                                             st.error(f"Follow-up error: {e}")
@@ -295,5 +280,5 @@ else:
                                     st.session_state.reviewed_usecases.add(selected)
                                     save_reviewed_usecases(st.session_state.reviewed_usecases)
                                     st.success(f"✅ Analysis saved and use case '{selected}' marked as reviewed!")
-                        except Exception as e:
-                            st.error(f"Inference error: {e}")
+                        else:
+                            st.error("API call failed - no response received")
