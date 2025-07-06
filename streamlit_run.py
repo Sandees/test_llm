@@ -159,7 +159,17 @@ else:
                                 max_tokens=2048
                             )
                             st.subheader("LLM Analysis")
-                            analysis_result = response.choices[0].message.content
+                            # Debug: Show response structure
+                            st.write("Debug - Response type:", type(response))
+                            st.write("Debug - Response:", response)
+                            
+                            try:
+                                analysis_result = response.choices[0].message.content
+                            except Exception as e:
+                                st.error(f"Error parsing response: {e}")
+                                st.write("Response structure:", response)
+                                analysis_result = str(response)
+                            
                             st.write(analysis_result)
                             
                             # Store the analysis result in session state
@@ -199,7 +209,15 @@ else:
                                                 max_tokens=2048
                                             )
                                             
-                                            follow_up_result = follow_up_response.choices[0].message.content
+                                            # Handle different response formats for follow-up
+                                            if hasattr(follow_up_response, 'choices') and follow_up_response.choices:
+                                                follow_up_result = follow_up_response.choices[0].message.content
+                                            elif hasattr(follow_up_response, 'content'):
+                                                follow_up_result = follow_up_response.content
+                                            elif isinstance(follow_up_response, dict):
+                                                follow_up_result = follow_up_response.get('content', str(follow_up_response))
+                                            else:
+                                                follow_up_result = str(follow_up_response)
                                             st.session_state.conversation_history.append({
                                                 "role": "assistant",
                                                 "content": follow_up_result
