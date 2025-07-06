@@ -151,6 +151,8 @@ else:
                         user_msg = {"role": "user", "content": user_prompt}
                         
                         try:
+                            st.write("About to make API call...")
+                            
                             # Call the LLM using correct Databricks SDK format
                             response = w.serving_endpoints.query(
                                 name="databricks-meta-llama-3-70b-instruct",
@@ -159,29 +161,16 @@ else:
                                 max_tokens=2048
                             )
                             
+                            st.write("API call completed successfully!")
                             st.subheader("LLM Analysis")
+                            
                             # Handle the response properly
-                            try:
-                                # For Databricks SDK, the response might be a dict or have different structure
-                                if isinstance(response, dict):
-                                    # If it's a dict, try to access directly
-                                    analysis_result = response['choices'][0]['message']['content']
-                                else:
-                                    # If it's an object, try standard attribute access
-                                    analysis_result = response.choices[0].message.content
-                            except Exception as parse_error:
-                                # Show detailed error information
-                                st.error(f"Failed to parse response: {parse_error}")
-                                st.error(f"Response type: {type(response)}")
-                                st.error(f"Available attributes: {dir(response) if hasattr(response, '__dict__') else 'No attributes'}")
-                                
-                                # Try to show the raw response
-                                try:
-                                    st.json(response if isinstance(response, dict) else str(response))
-                                except:
-                                    st.write(f"Raw response: {response}")
-                                
-                                analysis_result = "Failed to parse LLM response"
+                            if isinstance(response, dict):
+                                # If it's a dict, try to access directly
+                                analysis_result = response['choices'][0]['message']['content']
+                            else:
+                                # If it's an object, try standard attribute access
+                                analysis_result = response.choices[0].message.content
                             
                             st.write(analysis_result)
                             
