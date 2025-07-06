@@ -171,23 +171,25 @@ else:
                                 st.write("2. Authentication issues")
                                 st.write("3. Model not available")
                                 st.write("4. Incorrect message format")
-                                return
+                                # Don't continue processing if API call failed
+                                analysis_result = "API call failed"
                             
                             st.subheader("LLM Analysis")
                             
-                            # Handle the response properly
-                            try:
-                                if isinstance(response, dict):
-                                    # If it's a dict, try to access directly
-                                    analysis_result = response['choices'][0]['message']['content']
-                                else:
-                                    # If it's an object, try standard attribute access
-                                    analysis_result = response.choices[0].message.content
-                            except Exception as parse_error:
-                                st.error(f"Failed to parse response: {parse_error}")
-                                st.write(f"Response type: {type(response)}")
-                                st.write(f"Response: {response}")
-                                analysis_result = "Failed to parse response"
+                            # Handle the response properly only if API call succeeded
+                            if 'response' in locals():
+                                try:
+                                    if isinstance(response, dict):
+                                        # If it's a dict, try to access directly
+                                        analysis_result = response['choices'][0]['message']['content']
+                                    else:
+                                        # If it's an object, try standard attribute access
+                                        analysis_result = response.choices[0].message.content
+                                except Exception as parse_error:
+                                    st.error(f"Failed to parse response: {parse_error}")
+                                    st.write(f"Response type: {type(response)}")
+                                    st.write(f"Response: {response}")
+                                    analysis_result = "Failed to parse response"
                             
                             st.write(analysis_result)
                             
