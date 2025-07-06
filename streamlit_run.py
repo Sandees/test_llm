@@ -197,101 +197,106 @@ else:
                         analysis_result = call_databricks_llm(config, messages, temperature=0.1, max_tokens=2048)
                         
                         if analysis_result:
-                            st.subheader("LLM Analysis")
-                            st.write(analysis_result)
-                            
-                            # Store the analysis result in session state
+                            # Store the analysis result in session state FIRST
                             if 'conversation_history' not in st.session_state:
                                 st.session_state.conversation_history = []
                             
-                            st.session_state.conversation_history.append({
-                                "role": "assistant",
-                                "content": analysis_result
-                            })
+                            # Mark that we have a current analysis
+                            st.session_state.has_current_analysis = True
+                            st.session_state.current_usecase = selected
+                            
+                            # Only add to conversation if it's not already there (prevent duplicates)
+                            if not st.session_state.conversation_history or st.session_state.conversation_history[-1]["content"] != analysis_result:
+                                st.session_state.conversation_history = [{
+                                    "role": "assistant",
+                                    "content": analysis_result
+                                }]
                             
                             st.session_state.current_analysis = {
                                 "usecase": selected,
                                 "analysis": analysis_result
                             }
+            
+            # Show analysis and follow-up section if we have a current analysis
+            if st.session_state.get('has_current_analysis', False) and st.session_state.get('current_usecase') == selected:
+                # Display the main analysis
+                st.subheader("LLM Analysis")
+                if st.session_state.conversation_history:
+                    st.write(st.session_state.conversation_history[0]["content"])
+                
+                # Show follow-up conversation using chat interface
+                if len(st.session_state.conversation_history) > 1:  # More than just the initial response
+                    st.subheader("Follow-up Conversation")
+                    
+                    # Display conversation in chat format
+                    for msg in st.session_state.conversation_history[1:]:  # Skip the first response
+                        with st.chat_message(msg["role"]):
+                            st.write(msg["content"])
+                
+                # Chat input for follow-up questions
+                st.subheader("Ask Follow-up Question")
+                follow_up_question = st.chat_input("Type your follow-up question here...")
+                
+                if follow_up_question:
+                    # Add user question to conversation
+                    st.session_state.conversation_history.append({
+                        "role": "user",
+                        "content": follow_up_question
+                    })
+                    
+                    # Get LLM response
+                    with st.spinner("Thinking..."):
+                        try:
+                            # Send entire conversation history for context
+                            system_msg = {
+                                "role": "system", 
+                                "content": (
+                                    "You are a security-focused assistant. "
+                                    "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
+                                )
+                            }
+                            follow_up_messages = [system_msg] + st.session_state.conversation_history
                             
-                            # Show follow-up conversation using chat interface
-                            if len(st.session_state.conversation_history) > 1:  # More than just the initial response
-                                st.subheader("Follow-up Conversation")
-                                
-                                # Display conversation in chat format
-                                for msg in st.session_state.conversation_history[1:]:  # Skip the first response
-                                    with st.chat_message(msg["role"]):
-                                        st.write(msg["content"])
+                            follow_up_result = call_databricks_llm(
+                                config, 
+                                follow_up_messages, 
+                                temperature=0.1, 
+                                max_tokens=2048
+                            )
                             
-                            # Chat input for follow-up questions
-                            st.subheader("Ask Follow-up Question")
-                            follow_up_question = st.chat_input("Type your follow-up question here...")
-                            
-                            if follow_up_question:
-                                # Add user question to conversation
+                            if follow_up_result:
+                                # Add assistant response to conversation
                                 st.session_state.conversation_history.append({
-                                    "role": "user",
-                                    "content": follow_up_question
+                                    "role": "assistant",
+                                    "content": follow_up_result
                                 })
-                                
-                                # Display user message immediately
-                                with st.chat_message("user"):
-                                    st.write(follow_up_question)
-                                
-                                # Get LLM response
-                                with st.chat_message("assistant"):
-                                    with st.spinner("Thinking..."):
-                                        try:
-                                            # Send entire conversation history for context
-                                            system_msg = {
-                                                "role": "system", 
-                                                "content": (
-                                                    "You are a security-focused assistant. "
-                                                    "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
-                                                )
-                                            }
-                                            follow_up_messages = [system_msg] + st.session_state.conversation_history
-                                            
-                                            follow_up_result = call_databricks_llm(
-                                                config, 
-                                                follow_up_messages, 
-                                                temperature=0.1, 
-                                                max_tokens=2048
-                                            )
-                                            
-                                            if follow_up_result:
-                                                st.write(follow_up_result)
-                                                # Add assistant response to conversation
-                                                st.session_state.conversation_history.append({
-                                                    "role": "assistant",
-                                                    "content": follow_up_result
-                                                })
-                                            else:
-                                                st.error("Follow-up request failed")
-                                            
-                                        except Exception as e:
-                                            st.error(f"Follow-up error: {e}")
+                                st.rerun()
+                            else:
+                                st.error("Follow-up request failed")
                             
-                            # Final review section
-                            st.subheader("Final Review")
-                            final_review = st.text_area("Add your final review/notes:", height=100, placeholder="Enter your final thoughts, conclusions, or additional notes about this use case...")
-                            
-                            # Save Analysis button below Final Review
-                            if st.button("Save Analysis"):
-                                # Save the full conversation, not just initial analysis
-                                full_conversation = "\n\n".join([
-                                    f"**{msg['role'].title()}:** {msg['content']}" 
-                                    for msg in st.session_state.conversation_history
-                                ])
-                                
-                                # Add final review if provided
-                                if final_review.strip():
-                                    full_conversation += f"\n\n**Final Review:**\n{final_review}"
-                                
-                                save_analysis(selected, full_conversation)
-                                # Mark this usecase as reviewed
-                                st.session_state.reviewed_usecases.add(selected)
-                                save_reviewed_usecases(st.session_state.reviewed_usecases)
-                                st.success(f"✅ Analysis saved and use case '{selected}' marked as reviewed!")
-                        else:
-                            st.error("API call failed - no response received")
+                        except Exception as e:
+                            st.error(f"Follow-up error: {e}")
+                
+                # Final review section
+                st.subheader("Final Review")
+                final_review = st.text_area("Add your final review/notes:", height=100, placeholder="Enter your final thoughts, conclusions, or additional notes about this use case...")
+                
+                # Save Analysis button below Final Review
+                if st.button("Save Analysis"):
+                    # Save the full conversation, not just initial analysis
+                    full_conversation = "\n\n".join([
+                        f"**{msg['role'].title()}:** {msg['content']}" 
+                        for msg in st.session_state.conversation_history
+                    ])
+                    
+                    # Add final review if provided
+                    if final_review.strip():
+                        full_conversation += f"\n\n**Final Review:**\n{final_review}"
+                    
+                    save_analysis(selected, full_conversation)
+                    # Mark this usecase as reviewed
+                    st.session_state.reviewed_usecases.add(selected)
+                    save_reviewed_usecases(st.session_state.reviewed_usecases)
+                    st.success(f"✅ Analysis saved and use case '{selected}' marked as reviewed!")
+                    # Clear the current analysis after saving
+                    st.session_state.has_current_analysis = False
