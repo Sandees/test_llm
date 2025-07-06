@@ -235,17 +235,24 @@ else:
                 
                 # Chat input for follow-up questions
                 st.subheader("Ask Follow-up Question")
-                follow_up_question = st.chat_input("Type your follow-up question here...")
                 
-                if follow_up_question:
+                # Initialize pending question state
+                if 'pending_followup' not in st.session_state:
+                    st.session_state.pending_followup = None
+                
+                # Process any pending follow-up question
+                if st.session_state.pending_followup:
+                    question = st.session_state.pending_followup
+                    st.session_state.pending_followup = None  # Clear it
+                    
                     # Add user question to conversation
                     st.session_state.conversation_history.append({
                         "role": "user",
-                        "content": follow_up_question
+                        "content": question
                     })
                     
                     # Get LLM response
-                    with st.spinner("Thinking..."):
+                    with st.spinner("Getting response..."):
                         try:
                             # Send entire conversation history for context
                             system_msg = {
@@ -276,6 +283,20 @@ else:
                             
                         except Exception as e:
                             st.error(f"Follow-up error: {e}")
+                
+                # Chat input - store question in session state instead of processing immediately
+                def handle_followup():
+                    follow_up_question = st.session_state.get("followup_input", "")
+                    if follow_up_question.strip():
+                        st.session_state.pending_followup = follow_up_question
+                        st.rerun()
+                
+                st.text_input(
+                    "Type your follow-up question and press Enter:",
+                    key="followup_input",
+                    on_change=handle_followup,
+                    placeholder="Ask a follow-up question..."
+                )
                 
                 # Final review section
                 st.subheader("Final Review")
