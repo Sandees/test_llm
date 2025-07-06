@@ -156,7 +156,7 @@ else:
                             try:
                                 # Call the LLM using correct Databricks SDK format
                                 response = w.serving_endpoints.query(
-                                    name="databricks-meta-llama-3-70b-instruct",
+                                    name="databricks-meta-llama-3-3-70b-instruct",
                                     messages=[system_msg, user_msg],
                                     temperature=0.1,
                                     max_tokens=2048
