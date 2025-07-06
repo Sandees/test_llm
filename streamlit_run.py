@@ -214,42 +214,33 @@ else:
                                 "analysis": analysis_result
                             }
                             
-                            # Show conversation history if there are follow-ups
+                            # Show follow-up conversation using chat interface
                             if len(st.session_state.conversation_history) > 1:  # More than just the initial response
                                 st.subheader("Follow-up Conversation")
-                                for i, msg in enumerate(st.session_state.conversation_history[1:], 1):  # Skip the first response
-                                    if msg["role"] == "user":
-                                        st.write(f"**Q{(i+1)//2}:** {msg['content']}")
-                                    else:
-                                        st.write(f"**A{(i//2)+1}:** {msg['content']}")
-                                        st.divider()
+                                
+                                # Display conversation in chat format
+                                for msg in st.session_state.conversation_history[1:]:  # Skip the first response
+                                    with st.chat_message(msg["role"]):
+                                        st.write(msg["content"])
                             
-                            # Initialize follow-up input in session state
-                            if 'followup_input' not in st.session_state:
-                                st.session_state.followup_input = ""
-                            
-                            # Show follow-up question section
+                            # Chat input for follow-up questions
                             st.subheader("Ask Follow-up Question")
+                            follow_up_question = st.chat_input("Type your follow-up question here...")
                             
-                            # Use session state to preserve input
-                            follow_up_question = st.text_input(
-                                "Your follow-up question:", 
-                                value=st.session_state.followup_input,
-                                key="followup_question_input"
-                            )
-                            
-                            # Update session state when input changes
-                            st.session_state.followup_input = follow_up_question
-                            
-                            if st.button("Ask Follow-up", key="followup_btn"):
-                                if follow_up_question.strip():
-                                    with st.spinner("Getting follow-up response..."):
-                                        # Add user's follow-up question to conversation
-                                        st.session_state.conversation_history.append({
-                                            "role": "user",
-                                            "content": follow_up_question
-                                        })
-                                        
+                            if follow_up_question:
+                                # Add user question to conversation
+                                st.session_state.conversation_history.append({
+                                    "role": "user",
+                                    "content": follow_up_question
+                                })
+                                
+                                # Display user message immediately
+                                with st.chat_message("user"):
+                                    st.write(follow_up_question)
+                                
+                                # Get LLM response
+                                with st.chat_message("assistant"):
+                                    with st.spinner("Thinking..."):
                                         try:
                                             # Send entire conversation history for context
                                             system_msg = {
@@ -267,21 +258,19 @@ else:
                                                 temperature=0.1, 
                                                 max_tokens=2048
                                             )
+                                            
                                             if follow_up_result:
+                                                st.write(follow_up_result)
+                                                # Add assistant response to conversation
                                                 st.session_state.conversation_history.append({
                                                     "role": "assistant",
                                                     "content": follow_up_result
                                                 })
-                                                # Clear the input after successful submission
-                                                st.session_state.followup_input = ""
-                                                st.rerun()
                                             else:
                                                 st.error("Follow-up request failed")
                                             
                                         except Exception as e:
                                             st.error(f"Follow-up error: {e}")
-                                else:
-                                    st.warning("Please enter a follow-up question")
                             
                             # Final review section
                             st.subheader("Final Review")
