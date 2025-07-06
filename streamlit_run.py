@@ -151,47 +151,37 @@ else:
                         user_msg = {"role": "user", "content": user_prompt}
                         
                         try:
-                            st.write("Debug - Making API call...")
-                            st.write("Debug - Model name:", "databricks-meta-llama-3-70b-instruct")
-                            st.write("Debug - Messages:", [system_msg, user_msg])
-                            
-                            # Call the LLM (replace with your actual model name)
+                            # Call the LLM using correct Databricks SDK format
                             response = w.serving_endpoints.query(
-                                name="databricks-meta-llama-3-70b-instruct",  # Replace with your model
+                                name="databricks-meta-llama-3-70b-instruct",
                                 messages=[system_msg, user_msg],
                                 temperature=0.1,
                                 max_tokens=2048
                             )
                             
-                            st.write("Debug - API call successful")
-                            st.write("Debug - Response type:", type(response))
-                            st.write("Debug - Response dir:", dir(response))
-                            
-                            # Try to access the response content
-                            if hasattr(response, 'choices'):
-                                st.write("Debug - Has choices attribute")
-                                st.write("Debug - Choices:", response.choices)
-                                if response.choices and len(response.choices) > 0:
-                                    st.write("Debug - First choice:", response.choices[0])
-                                    st.write("Debug - Choice type:", type(response.choices[0]))
-                                    if hasattr(response.choices[0], 'message'):
-                                        st.write("Debug - Has message:", response.choices[0].message)
-                                        if hasattr(response.choices[0].message, 'content'):
-                                            analysis_result = response.choices[0].message.content
-                                        else:
-                                            st.write("Debug - Message attributes:", dir(response.choices[0].message))
-                                            analysis_result = str(response.choices[0].message)
-                                    else:
-                                        st.write("Debug - Choice attributes:", dir(response.choices[0]))
-                                        analysis_result = str(response.choices[0])
-                                else:
-                                    analysis_result = "No choices in response"
-                            else:
-                                st.write("Debug - No choices attribute")
-                                st.write("Debug - Response attributes:", dir(response))
-                                analysis_result = str(response)
-                            
                             st.subheader("LLM Analysis")
+                            # Parse response based on Databricks SDK structure
+                            try:
+                                # Try the standard format first
+                                analysis_result = response.choices[0].message.content
+                            except (AttributeError, IndexError, KeyError) as e:
+                                # Try alternative parsing methods
+                                try:
+                                    # Convert to dict if it's a dataclass/object
+                                    if hasattr(response, 'as_dict'):
+                                        response_dict = response.as_dict()
+                                        analysis_result = response_dict['choices'][0]['message']['content']
+                                    elif hasattr(response, '__dict__'):
+                                        response_dict = response.__dict__
+                                        analysis_result = response_dict['choices'][0]['message']['content']
+                                    else:
+                                        # Last resort - try to access raw response
+                                        analysis_result = str(response)
+                                except Exception as nested_e:
+                                    st.error(f"Response parsing error: {e}, nested: {nested_e}")
+                                    st.error(f"Response type: {type(response)}")
+                                    analysis_result = f"Error parsing response: {response}"
+                            
                             st.write(analysis_result)
                             
                             # Store the analysis result in session state
