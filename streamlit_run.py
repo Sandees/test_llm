@@ -218,67 +218,74 @@ else:
                             st.subheader("Follow-up Questions")
                             follow_up_question = st.text_input("Ask a follow-up question about this analysis:")
                             
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                if st.button("Ask Follow-up") and follow_up_question:
-                                    with st.spinner("Getting follow-up response..."):
-                                        # Add user's follow-up question to conversation
-                                        st.session_state.conversation_history.append({
-                                            "role": "user",
-                                            "content": follow_up_question
-                                        })
-                                        
-                                        try:
-                                            # Send entire conversation history for context
-                                            system_msg = {
-                                                "role": "system", 
-                                                "content": (
-                                                    "You are a security-focused assistant. "
-                                                    "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
-                                                )
-                                            }
-                                            follow_up_messages = [system_msg] + st.session_state.conversation_history
-                                            
-                                            follow_up_result = call_databricks_llm(
-                                                config, 
-                                                follow_up_messages, 
-                                                temperature=0.1, 
-                                                max_tokens=2048
+                            if st.button("Ask Follow-up") and follow_up_question:
+                                with st.spinner("Getting follow-up response..."):
+                                    # Add user's follow-up question to conversation
+                                    st.session_state.conversation_history.append({
+                                        "role": "user",
+                                        "content": follow_up_question
+                                    })
+                                    
+                                    try:
+                                        # Send entire conversation history for context
+                                        system_msg = {
+                                            "role": "system", 
+                                            "content": (
+                                                "You are a security-focused assistant. "
+                                                "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
                                             )
-                                            if follow_up_result:
-                                                st.session_state.conversation_history.append({
-                                                    "role": "assistant",
-                                                    "content": follow_up_result
-                                                })
-                                                
-                                                st.subheader("Follow-up Response")
-                                                st.write(follow_up_result)
-                                            else:
-                                                st.error("Follow-up request failed")
-                                            
-                                        except Exception as e:
-                                            st.error(f"Follow-up error: {e}")
+                                        }
+                                        follow_up_messages = [system_msg] + st.session_state.conversation_history
+                                        
+                                        follow_up_result = call_databricks_llm(
+                                            config, 
+                                            follow_up_messages, 
+                                            temperature=0.1, 
+                                            max_tokens=2048
+                                        )
+                                        if follow_up_result:
+                                            st.session_state.conversation_history.append({
+                                                "role": "assistant",
+                                                "content": follow_up_result
+                                            })
+                                            # Force rerun to show the new response
+                                            st.rerun()
+                                        else:
+                                            st.error("Follow-up request failed")
+                                        
+                                    except Exception as e:
+                                        st.error(f"Follow-up error: {e}")
+                            
+                            # Show conversation history if there are follow-ups
+                            if len(st.session_state.conversation_history) > 1:  # More than just the initial response
+                                st.subheader("Conversation History")
+                                for i, msg in enumerate(st.session_state.conversation_history[1:], 1):  # Skip the first response
+                                    if msg["role"] == "user":
+                                        st.write(f"**Question {i//2 + 1}:** {msg['content']}")
+                                    else:
+                                        st.write(f"**Answer {i//2 + 1}:** {msg['content']}")
+                                        st.divider()
                             
                             # Final review section
                             st.subheader("Final Review")
                             final_review = st.text_area("Add your final review/notes:", height=100, placeholder="Enter your final thoughts, conclusions, or additional notes about this use case...")
                             
-                            with col2:
-                                if st.button("Save Analysis"):
-                                    # Save the full conversation, not just initial analysis
-                                    full_conversation = "\n\n".join([
-                                        f"**{msg['role'].title()}:** {msg['content']}" 
-                                        for msg in st.session_state.conversation_history
-                                    ])
-                                    
-                                    # Add final review if provided
-                                    if final_review.strip():
-                                        full_conversation += f"\n\n**Final Review:**\n{final_review}"
-                                    
-                                    save_analysis(selected, full_conversation)
-                                    # Mark this usecase as reviewed
-                                    st.session_state.reviewed_usecases.add(selected)
-                                    save_reviewed_usecases(st.session_state.reviewed_usecases)
-                                    st.success(f"✅ Analysis saved and use case '{selected}' marked as reviewed!")
+                            # Save Analysis button below Final Review
+                            if st.button("Save Analysis"):
+                                # Save the full conversation, not just initial analysis
+                                full_conversation = "\n\n".join([
+                                    f"**{msg['role'].title()}:** {msg['content']}" 
+                                    for msg in st.session_state.conversation_history
+                                ])
+                                
+                                # Add final review if provided
+                                if final_review.strip():
+                                    full_conversation += f"\n\n**Final Review:**\n{final_review}"
+                                
+                                save_analysis(selected, full_conversation)
+                                # Mark this usecase as reviewed
+                                st.session_state.reviewed_usecases.add(selected)
+                                save_reviewed_usecases(st.session_state.reviewed_usecases)
+                                st.success(f"✅ Analysis saved and use case '{selected}' marked as reviewed!")
                         else:
                             st.error("API call failed - no response received")
