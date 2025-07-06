@@ -1,0 +1,42 @@
+{
+    "Access - CRO - A Domain Policy was modified - PCD": {
+      "techniques": [
+        {
+          "ID": "T1484.001",
+          "name": "Domain or Tenant Policy Modification: Group Policy Modification",
+          "description": "Adversaries may modify Group Policy Objects (GPOs) to subvert the intended discretionary access control policies.",
+          "tactics": "Defense Evasion, Privilege Escalation",
+          "platforms": "Windows"
+        }
+      ],
+      "files": {
+        "search.spl": "index=ep_winevt_ms_pcd host=\"$drilldown_dest$\" (sourcetype=Next* OR sourcetype=WinEventLog:Security) ...",
+        "drilldown.spl": "index=ep_winevt_ms_pcd host=\"$drilldown_dest$\" | stats count by EventCode, AccountName ...",
+        "README.md": "# Access – PCD\n\n## Objective/Intent\nDetect when a domain policy was modified via Group Policy Objects (GPOs).\n"
+      }
+    },
+    "Access - CRO - Abuse of Executive Temporary Password": {
+      "techniques": [
+        {
+          "ID": "T1078.002",
+          "name": "Valid Accounts: Domain Accounts",
+          "description": "Adversaries may obtain and abuse credentials of a domain account as a means of gaining Initial Access or Persistence.",
+          "tactics": "Defense Evasion, Initial Access, Persistence",
+          "platforms": "Windows, Linux"
+        },
+        {
+          "ID": "T1199",
+          "name": "Trusted Relationship",
+          "description": "Adversaries may breach or otherwise leverage organizations who have access to intended victim environments.",
+          "tactics": "Initial Access",
+          "platforms": "SaaS, Office Suite"
+        }
+      ],
+      "files": {
+        "search.spl": "index=ep_edr_crowdstrike event_simpleName=\"UserLogon\" UserSid=UserSid | inputlookup uc_abuse_of_exec_temp_pw ...",
+        "drilldown.spl": "index=ep_edr_crowdstrike event_simpleName=\"UserLogon\" UserSid=UserSid | stats count by Account, Host ...",
+        "README.md": "# Abuse of Exec Temporary PW\n\n## Objective/Intent\nTo detect abuse of temporary passwords generated for executives by IT.\n"
+      }
+    }
+  }
+  
