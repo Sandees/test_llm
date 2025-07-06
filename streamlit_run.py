@@ -153,24 +153,41 @@ else:
                         try:
                             st.write("About to make API call...")
                             
-                            # Call the LLM using correct Databricks SDK format
-                            response = w.serving_endpoints.query(
-                                name="databricks-meta-llama-3-70b-instruct",
-                                messages=[system_msg, user_msg],
-                                temperature=0.1,
-                                max_tokens=2048
-                            )
+                            try:
+                                # Call the LLM using correct Databricks SDK format
+                                response = w.serving_endpoints.query(
+                                    name="databricks-meta-llama-3-70b-instruct",
+                                    messages=[system_msg, user_msg],
+                                    temperature=0.1,
+                                    max_tokens=2048
+                                )
+                                st.write("API call completed successfully!")
+                                
+                            except Exception as api_error:
+                                st.error(f"API call failed: {api_error}")
+                                st.error(f"Error type: {type(api_error)}")
+                                st.write("This might be due to:")
+                                st.write("1. Invalid model name")
+                                st.write("2. Authentication issues")
+                                st.write("3. Model not available")
+                                st.write("4. Incorrect message format")
+                                return
                             
-                            st.write("API call completed successfully!")
                             st.subheader("LLM Analysis")
                             
                             # Handle the response properly
-                            if isinstance(response, dict):
-                                # If it's a dict, try to access directly
-                                analysis_result = response['choices'][0]['message']['content']
-                            else:
-                                # If it's an object, try standard attribute access
-                                analysis_result = response.choices[0].message.content
+                            try:
+                                if isinstance(response, dict):
+                                    # If it's a dict, try to access directly
+                                    analysis_result = response['choices'][0]['message']['content']
+                                else:
+                                    # If it's an object, try standard attribute access
+                                    analysis_result = response.choices[0].message.content
+                            except Exception as parse_error:
+                                st.error(f"Failed to parse response: {parse_error}")
+                                st.write(f"Response type: {type(response)}")
+                                st.write(f"Response: {response}")
+                                analysis_result = "Failed to parse response"
                             
                             st.write(analysis_result)
                             
