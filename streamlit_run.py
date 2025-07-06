@@ -164,13 +164,21 @@ else:
                                 st.write("API call completed successfully!")
                                 
                             except Exception as api_error:
-                                st.error(f"API call failed: {api_error}")
-                                st.error(f"Error type: {type(api_error)}")
+                                st.error(f"API call failed: {str(api_error)}")
+                                st.error(f"Error type: {type(api_error).__name__}")
+                                
+                                # Show more detailed error information
+                                if hasattr(api_error, 'response'):
+                                    st.write(f"Response status: {api_error.response.status_code if hasattr(api_error.response, 'status_code') else 'Unknown'}")
+                                    st.write(f"Response text: {api_error.response.text if hasattr(api_error.response, 'text') else 'No response text'}")
+                                
                                 st.write("This might be due to:")
-                                st.write("1. Invalid model name")
-                                st.write("2. Authentication issues")
-                                st.write("3. Model not available")
+                                st.write("1. Invalid model name - check if 'databricks-meta-llama-3-3-70b-instruct' exists")
+                                st.write("2. Authentication issues - check DATABRICKS_TOKEN and DATABRICKS_HOST")
+                                st.write("3. Model not available or not deployed")
                                 st.write("4. Incorrect message format")
+                                st.write("5. Insufficient permissions")
+                                
                                 # Don't continue processing if API call failed
                                 analysis_result = "API call failed"
                             
@@ -179,16 +187,32 @@ else:
                             # Handle the response properly only if API call succeeded
                             if 'response' in locals():
                                 try:
-                                    if isinstance(response, dict):
-                                        # If it's a dict, try to access directly
-                                        analysis_result = response['choices'][0]['message']['content']
-                                    else:
-                                        # If it's an object, try standard attribute access
+                                    # For Databricks serving endpoints, try these formats
+                                    if hasattr(response, 'choices') and response.choices:
+                                        # Standard OpenAI-like format
                                         analysis_result = response.choices[0].message.content
+                                    elif hasattr(response, 'predictions') and response.predictions:
+                                        # Databricks predictions format
+                                        analysis_result = response.predictions[0]['candidates'][0]['message']['content']
+                                    elif isinstance(response, dict):
+                                        # Dictionary format
+                                        if 'choices' in response:
+                                            analysis_result = response['choices'][0]['message']['content']
+                                        elif 'predictions' in response:
+                                            analysis_result = response['predictions'][0]['candidates'][0]['message']['content']
+                                        else:
+                                            analysis_result = str(response)
+                                    else:
+                                        # Try to convert to string
+                                        analysis_result = str(response)
                                 except Exception as parse_error:
                                     st.error(f"Failed to parse response: {parse_error}")
                                     st.write(f"Response type: {type(response)}")
-                                    st.write(f"Response: {response}")
+                                    st.write(f"Response attributes: {dir(response)}")
+                                    try:
+                                        st.write(f"Response: {response}")
+                                    except:
+                                        st.write("Response object cannot be displayed")
                                     analysis_result = "Failed to parse response"
                             
                             st.write(analysis_result)
@@ -224,7 +248,7 @@ else:
                                         try:
                                             # Send entire conversation history for context
                                             follow_up_response = w.serving_endpoints.query(
-                                                name="databricks-meta-llama-3-70b-instruct",
+                                                name="databricks-meta-llama-3-3-70b-instruct",
                                                 messages=[system_msg] + st.session_state.conversation_history,
                                                 temperature=0.1,
                                                 max_tokens=2048
