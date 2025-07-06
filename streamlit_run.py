@@ -214,57 +214,61 @@ else:
                                 "analysis": analysis_result
                             }
                             
-                            # Show follow-up question section
-                            st.subheader("Follow-up Questions")
-                            follow_up_question = st.text_input("Ask a follow-up question about this analysis:")
-                            
-                            if st.button("Ask Follow-up") and follow_up_question:
-                                with st.spinner("Getting follow-up response..."):
-                                    # Add user's follow-up question to conversation
-                                    st.session_state.conversation_history.append({
-                                        "role": "user",
-                                        "content": follow_up_question
-                                    })
-                                    
-                                    try:
-                                        # Send entire conversation history for context
-                                        system_msg = {
-                                            "role": "system", 
-                                            "content": (
-                                                "You are a security-focused assistant. "
-                                                "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
-                                            )
-                                        }
-                                        follow_up_messages = [system_msg] + st.session_state.conversation_history
-                                        
-                                        follow_up_result = call_databricks_llm(
-                                            config, 
-                                            follow_up_messages, 
-                                            temperature=0.1, 
-                                            max_tokens=2048
-                                        )
-                                        if follow_up_result:
-                                            st.session_state.conversation_history.append({
-                                                "role": "assistant",
-                                                "content": follow_up_result
-                                            })
-                                            # Force rerun to show the new response
-                                            st.rerun()
-                                        else:
-                                            st.error("Follow-up request failed")
-                                        
-                                    except Exception as e:
-                                        st.error(f"Follow-up error: {e}")
-                            
                             # Show conversation history if there are follow-ups
                             if len(st.session_state.conversation_history) > 1:  # More than just the initial response
-                                st.subheader("Conversation History")
+                                st.subheader("Follow-up Conversation")
                                 for i, msg in enumerate(st.session_state.conversation_history[1:], 1):  # Skip the first response
                                     if msg["role"] == "user":
-                                        st.write(f"**Question {i//2 + 1}:** {msg['content']}")
+                                        st.write(f"**Q{(i+1)//2}:** {msg['content']}")
                                     else:
-                                        st.write(f"**Answer {i//2 + 1}:** {msg['content']}")
+                                        st.write(f"**A{(i//2)+1}:** {msg['content']}")
                                         st.divider()
+                            
+                            # Show follow-up question section
+                            st.subheader("Ask Follow-up Question")
+                            
+                            # Use a form to prevent page reset
+                            with st.form("followup_form", clear_on_submit=True):
+                                follow_up_question = st.text_input("Your follow-up question:")
+                                submitted = st.form_submit_button("Ask Follow-up")
+                                
+                                if submitted and follow_up_question:
+                                    with st.spinner("Getting follow-up response..."):
+                                        # Add user's follow-up question to conversation
+                                        st.session_state.conversation_history.append({
+                                            "role": "user",
+                                            "content": follow_up_question
+                                        })
+                                        
+                                        try:
+                                            # Send entire conversation history for context
+                                            system_msg = {
+                                                "role": "system", 
+                                                "content": (
+                                                    "You are a security-focused assistant. "
+                                                    "Review the provided SPL and drill-down SPL queries against the MITRE ATT&CK techniques."
+                                                )
+                                            }
+                                            follow_up_messages = [system_msg] + st.session_state.conversation_history
+                                            
+                                            follow_up_result = call_databricks_llm(
+                                                config, 
+                                                follow_up_messages, 
+                                                temperature=0.1, 
+                                                max_tokens=2048
+                                            )
+                                            if follow_up_result:
+                                                st.session_state.conversation_history.append({
+                                                    "role": "assistant",
+                                                    "content": follow_up_result
+                                                })
+                                                st.success("Follow-up response added! Check the conversation above.")
+                                                st.rerun()
+                                            else:
+                                                st.error("Follow-up request failed")
+                                            
+                                        except Exception as e:
+                                            st.error(f"Follow-up error: {e}")
                             
                             # Final review section
                             st.subheader("Final Review")
