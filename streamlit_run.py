@@ -224,15 +224,25 @@ else:
                                         st.write(f"**A{(i//2)+1}:** {msg['content']}")
                                         st.divider()
                             
+                            # Initialize follow-up input in session state
+                            if 'followup_input' not in st.session_state:
+                                st.session_state.followup_input = ""
+                            
                             # Show follow-up question section
                             st.subheader("Ask Follow-up Question")
                             
-                            # Use a form to prevent page reset
-                            with st.form("followup_form", clear_on_submit=True):
-                                follow_up_question = st.text_input("Your follow-up question:")
-                                submitted = st.form_submit_button("Ask Follow-up")
-                                
-                                if submitted and follow_up_question:
+                            # Use session state to preserve input
+                            follow_up_question = st.text_input(
+                                "Your follow-up question:", 
+                                value=st.session_state.followup_input,
+                                key="followup_question_input"
+                            )
+                            
+                            # Update session state when input changes
+                            st.session_state.followup_input = follow_up_question
+                            
+                            if st.button("Ask Follow-up", key="followup_btn"):
+                                if follow_up_question.strip():
                                     with st.spinner("Getting follow-up response..."):
                                         # Add user's follow-up question to conversation
                                         st.session_state.conversation_history.append({
@@ -262,13 +272,16 @@ else:
                                                     "role": "assistant",
                                                     "content": follow_up_result
                                                 })
-                                                st.success("Follow-up response added! Check the conversation above.")
+                                                # Clear the input after successful submission
+                                                st.session_state.followup_input = ""
                                                 st.rerun()
                                             else:
                                                 st.error("Follow-up request failed")
                                             
                                         except Exception as e:
                                             st.error(f"Follow-up error: {e}")
+                                else:
+                                    st.warning("Please enter a follow-up question")
                             
                             # Final review section
                             st.subheader("Final Review")
